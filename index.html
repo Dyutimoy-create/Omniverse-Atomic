@@ -1,0 +1,746 @@
+<!DOCTYPE html>
+<html lang="en" class="h-full bg-slate-950">
+<head>
+    <meta charset="UTF-8">
+    <meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
+    <title>Neon Particle Simulator: Atomic</title>
+    <script src="https://cdn.tailwindcss.com"></script>
+    <link href="https://fonts.googleapis.com/css2?family=Orbitron:wght@400;700;900&family=Roboto+Mono:wght@400;600&display=swap" rel="stylesheet">
+    <style>
+        body {
+            font-family: 'Roboto Mono', monospace;
+            background-image: radial-gradient(circle at 50% 0%, #020617, #000000);
+            overflow: hidden;
+        }
+        
+        h1, h2, h3 { font-family: 'Orbitron', sans-serif; }
+
+        canvas {
+            image-rendering: pixelated;
+            touch-action: none;
+            width: 100%;
+            height: 100%;
+            object-fit: contain;
+            filter: drop-shadow(0 0 30px rgba(124, 58, 237, 0.2));
+            transition: transform 0.05s cubic-bezier(0.2, 0.8, 0.2, 1);
+        }
+
+        .glass-panel {
+            background: rgba(10, 10, 20, 0.92); 
+            backdrop-filter: blur(20px);
+            -webkit-backdrop-filter: blur(20px);
+            border: 1px solid rgba(255, 255, 255, 0.08);
+            box-shadow: 0 8px 32px rgba(0,0,0,0.8);
+        }
+
+        .btn-neon {
+            position: relative;
+            overflow: hidden;
+            transition: all 0.1s ease-out;
+        }
+        .btn-neon:active { transform: scale(0.95); }
+        .btn-active {
+            box-shadow: 0 0 20px currentColor, inset 0 0 10px currentColor;
+            border-color: currentColor;
+            color: #fff !important;
+            text-shadow: 0 0 8px currentColor;
+            background-color: rgba(30, 41, 59, 0.95) !important;
+        }
+
+        .scientist-container {
+            position: absolute;
+            bottom: 20px;
+            right: 20px;
+            z-index: 50;
+            pointer-events: none;
+            transition: all 0.3s cubic-bezier(0.175, 0.885, 0.32, 1.275);
+        }
+        .scientist-emoji {
+            font-size: 5rem;
+            filter: drop-shadow(0 0 20px rgba(100,100,255,0.5));
+            display: inline-block;
+            transition: transform 0.1s;
+            cursor: pointer;
+            pointer-events: auto;
+        }
+        .scientist-emoji:hover { transform: scale(1.1) rotate(10deg); }
+        
+        .speech-bubble {
+            position: absolute;
+            bottom: 110%;
+            right: 10%;
+            background: rgba(255, 255, 255, 0.95);
+            color: #0f172a;
+            padding: 12px 20px;
+            border-radius: 20px 20px 0 20px;
+            font-family: 'Orbitron', sans-serif;
+            font-weight: 800;
+            font-size: 0.85rem;
+            white-space: nowrap;
+            box-shadow: 0 0 25px rgba(255,255,255,0.3);
+            opacity: 0;
+            transform: translateY(20px) scale(0.8) rotate(-5deg);
+            transition: all 0.2s cubic-bezier(0.68, -0.55, 0.265, 1.55);
+            margin-bottom: 10px;
+            border: 3px solid #3b82f6;
+            z-index: 60;
+        }
+        .speech-bubble.show { opacity: 1; transform: translateY(0) scale(1) rotate(0deg); }
+        
+        .floating { animation: float 4s ease-in-out infinite; }
+        @keyframes float { 0%, 100% { transform: translateY(0) rotate(0deg); } 50% { transform: translateY(-20px) rotate(5deg); } }
+        .shaking { animation: shake 0.2s infinite; }
+        @keyframes shake { 0% { transform: translate(2px, 2px); } 50% { transform: translate(-2px, -2px); } 100% { transform: translate(2px, -2px); } }
+        .sleeping { animation: sleep 3s infinite ease-in-out; filter: grayscale(0.8) brightness(0.8); }
+        @keyframes sleep { 0%, 100% { transform: scale(1); } 50% { transform: scale(0.95); } }
+        
+        /* Radiation Mutation Effect */
+        .mutated { filter: hue-rotate(90deg) contrast(1.2); animation: pulse-green 2s infinite; }
+        @keyframes pulse-green { 0% { text-shadow: 0 0 10px #4ade80; } 50% { text-shadow: 0 0 30px #22c55e; } 100% { text-shadow: 0 0 10px #4ade80; } }
+
+        input[type=range] { -webkit-appearance: none; background: transparent; }
+        input[type=range]::-webkit-slider-thumb {
+            -webkit-appearance: none; height: 16px; width: 16px;
+            border-radius: 50%; background: #8b5cf6;
+            box-shadow: 0 0 10px #8b5cf6; margin-top: -6px;
+            cursor: pointer; border: 2px solid #fff;
+        }
+        input[type=range]::-webkit-slider-runnable-track {
+            width: 100%; height: 4px; background: #334155; border-radius: 2px;
+        }
+    </style>
+</head>
+<body class="h-full flex flex-col text-gray-200">
+
+    <header class="w-full glass-panel z-30 shrink-0 border-b border-violet-900/50">
+        <div class="container mx-auto px-4 py-3 flex justify-between items-center">
+            <h1 class="text-lg md:text-3xl font-black text-transparent bg-clip-text bg-gradient-to-r from-cyan-400 via-fuchsia-400 to-white neon-text tracking-widest italic">
+                OMNIVERSE <span class="text-xs text-yellow-400 not-italic">Atomic</span>
+            </h1>
+            <div class="flex items-center gap-3">
+                <button id="gravityBtn" class="p-2 rounded-full bg-slate-800/50 border border-slate-600 hover:border-violet-400 hover:text-violet-400 transition-all text-blue-300 shadow-lg group" title="Toggle Gravity">
+                    <svg class="w-5 h-5 group-hover:scale-110 transition-transform" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 14l-7 7m0 0l-7-7m7 7V3"></path></svg>
+                </button>
+                <button id="pauseBtn" class="p-2 rounded-full bg-slate-800/50 border border-slate-600 hover:border-yellow-400 hover:text-yellow-400 transition-all text-cyan-300 shadow-lg" title="Pause">
+                    <svg id="iconPause" class="w-5 h-5" fill="currentColor" viewBox="0 0 24 24"><path d="M6 4h4v16H6V4zm8 0h4v16h-4V4z"/></svg>
+                    <svg id="iconPlay" class="w-5 h-5 hidden" fill="currentColor" viewBox="0 0 24 24"><path d="M8 5v14l11-7z"/></svg>
+                </button>
+                <div class="hidden md:flex flex-col items-end text-[10px] text-gray-400 font-mono leading-tight ml-2">
+                    <div class="flex items-center gap-2 mb-1">
+                        <span class="text-violet-400 font-bold">BRUSH</span>
+                        <input id="brushSizeSlider" type="range" min="1" max="20" value="4" class="w-20">
+                    </div>
+                    <div class="bg-slate-900/80 px-2 py-0.5 rounded text-xs border border-slate-700"><span id="fpsCounter" class="text-emerald-400 font-bold">60</span> FPS</div>
+                </div>
+            </div>
+        </div>
+    </header>
+
+    <main class="flex-1 flex flex-col lg:flex-row overflow-hidden relative">
+        <div class="lg:w-80 w-full glass-panel flex flex-col order-2 lg:order-1 border-t lg:border-t-0 lg:border-r border-indigo-900/30 z-20 shadow-2xl">
+            <div class="flex-1 overflow-y-auto p-4 space-y-5 custom-scrollbar">
+                <div class="relative group">
+                    <div class="flex items-center justify-between bg-slate-900/60 p-3 rounded-xl border border-indigo-500/30 shadow-inner">
+                        <div class="flex items-center gap-3">
+                            <div id="activeColorIndicator" class="w-6 h-6 rounded-full shadow-[0_0_15px_currentColor] transition-colors duration-300 border border-white/20"></div>
+                            <div>
+                                <p class="text-[9px] text-indigo-300 uppercase tracking-[0.2em] font-bold">Active Matter</p>
+                                <h2 id="activeElementDisplay" class="text-xl font-black text-white tracking-widest drop-shadow-md transition-colors duration-300">SAND</h2>
+                            </div>
+                        </div>
+                    </div>
+                </div>
+                <div class="space-y-6">
+                    <div><h3 class="text-[10px] font-bold text-cyan-300 uppercase tracking-[0.2em] mb-2 border-b border-cyan-900/50 pb-1">Matter</h3><div id="basicButtons" class="grid grid-cols-3 gap-2"></div></div>
+                    <div><h3 class="text-[10px] font-bold text-blue-300 uppercase tracking-[0.2em] mb-2 border-b border-blue-900/50 pb-1">Fluids</h3><div id="liquidButtons" class="grid grid-cols-3 gap-2"></div></div>
+                    <div><h3 class="text-[10px] font-bold text-green-300 uppercase tracking-[0.2em] mb-2 border-b border-green-900/50 pb-1">Radiation</h3><div id="radButtons" class="grid grid-cols-3 gap-2"></div></div>
+                    <div><h3 class="text-[10px] font-bold text-fuchsia-300 uppercase tracking-[0.2em] mb-2 border-b border-fuchsia-900/50 pb-1">Entropy</h3><div id="chaosButtons" class="grid grid-cols-3 gap-2"></div></div>
+                    <div><h3 class="text-[10px] font-bold text-violet-300 uppercase tracking-[0.2em] mb-2 border-b border-violet-900/50 pb-1">God Tier</h3><div id="cosmicButtons" class="grid grid-cols-3 gap-2"></div></div>
+                </div>
+                <button id="clearBtn" class="mt-auto w-full group relative px-4 py-3 bg-red-900/20 border border-red-500/30 text-red-400 font-bold rounded-xl overflow-hidden hover:bg-red-500 hover:text-white transition-all duration-300 shadow-lg">
+                    <span class="relative z-10 flex items-center justify-center gap-2 tracking-widest text-xs">
+                        <svg class="w-4 h-4" fill="none" stroke="currentColor" viewBox="0 0 24 24"><path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M19 7l-.867 12.142A2 2 0 0116.138 21H7.862a2 2 0 01-1.995-1.858L5 7m5 4v6m4-6v6m1-10V4a1 1 0 00-1-1h-4a1 1 0 00-1 1v3M4 7h16"></path></svg>
+                        UNIVERSAL RESET
+                    </span>
+                </button>
+            </div>
+        </div>
+
+        <div class="flex-1 relative bg-black flex items-center justify-center order-1 lg:order-2 p-0 lg:p-6 overflow-hidden">
+            <div class="absolute inset-0 opacity-40 pointer-events-none" style="background-image: radial-gradient(#312e81 1px, transparent 1px), radial-gradient(#1e1b4b 1px, transparent 1px); background-size: 20px 20px, 60px 60px; background-position: 0 0, 30px 30px;"></div>
+            <div id="canvasContainer" class="relative w-full h-full max-w-[650px] aspect-square flex items-center justify-center shadow-[0_0_120px_rgba(124,58,237,0.2)] rounded-lg overflow-hidden border border-violet-900/40 bg-black transition-transform will-change-transform">
+                <canvas id="simCanvas"></canvas>
+            </div>
+            <div id="scientist" class="scientist-container hidden md:block" onclick="pokeScientist()">
+                <div id="bubble" class="speech-bubble">Systems Online.</div>
+                <div id="avatar" class="scientist-emoji">👨‍🚀</div>
+            </div>
+            <div class="absolute bottom-6 right-6 lg:hidden glass-panel p-3 rounded-full flex items-center shadow-xl border border-slate-600">
+                <span class="text-[10px] font-bold text-violet-300 mr-2">SIZE</span>
+                <input id="mobileBrushSlider" type="range" min="1" max="15" value="3" class="w-32">
+            </div>
+        </div>
+    </main>
+
+    <script type="module">
+        const GRID_SIZE = 150;
+        const SHAKE_DECAY = 0.85; // FIX: Added missing constant
+        
+        const ELEMENTS = {
+            // MATTER
+            EMPTY:    { id: 0,  color: '#000000', density: 0, type: 'gas', label: 'Vacuum', cat: 'basic' },
+            WALL:     { id: 1,  color: '#475569', density: 100, type: 'solid', label: 'Titanium', cat: 'basic' },
+            SAND:     { id: 2,  color: '#fcd34d', density: 60, type: 'powder', label: 'Sand', cat: 'basic' },
+            ICE:      { id: 3,  color: '#cffafe', density: 95, type: 'solid', label: 'Ice', glow: true, cat: 'basic' },
+            PLANT:    { id: 4,  color: '#22c55e', density: 80, type: 'solid', label: 'Flora', glow: true, cat: 'basic' },
+            BRICK:    { id: 5,  color: '#b91c1c', density: 100, type: 'solid', label: 'Brick', cat: 'basic' },
+            SMOKE:    { id: 6,  color: '#71717a', density: -5, type: 'gas', label: 'Smoke', cat: 'basic' },
+
+            // FLUIDS
+            WATER:    { id: 7,  color: '#2563eb', density: 10, type: 'liquid', label: 'Water', glow: true, cat: 'liquid' },
+            OIL:      { id: 8,  color: '#9333ea', density: 5, type: 'liquid', label: 'Plasma', glow: true, cat: 'liquid' },
+            ACID:     { id: 9,  color: '#84cc16', density: 12, type: 'liquid', label: 'Acid', glow: true, cat: 'liquid' },
+            LAVA:     { id: 10, color: '#ea580c', density: 20, type: 'liquid', label: 'Magma', glow: true, cat: 'liquid' },
+            ALKALI:   { id: 11, color: '#6ee7b7', density: 15, type: 'liquid', label: 'Alkali', glow: true, cat: 'liquid' },
+            OOZE:     { id: 12, color: '#7c3aed', density: 30, type: 'liquid', label: 'Ooze', cat: 'liquid' },
+            MUTAGEN:  { id: 39, color: '#d946ef', density: 11, type: 'liquid', label: 'Mutagen', glow: true, cat: 'liquid' }, // New
+
+            // RADIATION
+            URANIUM:  { id: 40, color: '#3f6212', density: 95, type: 'solid', label: 'Uranium', glow: true, cat: 'rad' }, // New
+            RADON:    { id: 41, color: '#166534', density: 2, type: 'gas', label: 'Radon', glow: true, cat: 'rad' }, // New
+            FALLOUT:   { id: 98, color: '#4ade80', density: -3, type: 'gas', label: 'Fallout', glow: true, cat: 'rad' },
+
+            // ENTROPY
+            FIRE:     { id: 13, color: '#facc15', density: -5, type: 'gas', label: 'Fire', glow: true, cat: 'chaos' },
+            METHANE:  { id: 14, color: '#10b981', density: -15, type: 'gas', label: 'Methane', glow: true, cat: 'chaos' },
+            C4:       { id: 15, color: '#be123c', density: 90, type: 'solid', label: 'C-4', cat: 'chaos' },
+            THUNDER:  { id: 16, color: '#e0f2fe', density: 0, type: 'energy', label: 'Thunder', glow: true, cat: 'chaos' },
+            GRAY_GOO: { id: 17, color: '#737373', density: 70, type: 'liquid', label: 'Gray Goo', cat: 'chaos' },
+            EXPLOSIVE:{ id: 18, color: '#fca5a5', density: 85, type: 'powder', label: 'TNT', cat: 'chaos' },
+            POISON:   { id: 19, color: '#16a34a', density: -8, type: 'gas', label: 'Poison', glow: true, cat: 'chaos' },
+
+            // GOD TIER
+            ANTIMATTER:{ id: 20, color: '#171717', density: 100, type: 'solid', label: 'Anti-M', glow: true, cat: 'cosmic' },
+            NEBULA:    { id: 21, color: '#f472b6', density: -2, type: 'gas', label: 'Nebula', glow: true, cat: 'cosmic' },
+            PHOTON:    { id: 22, color: '#ffffff', density: 0, type: 'energy', label: 'Photon', glow: true, cat: 'cosmic' },
+            QUARK:     { id: 23, color: '#818cf8', density: 50, type: 'liquid', label: 'Quarks', glow: true, cat: 'cosmic' },
+            BLACK_HOLE:{ id: 24, color: '#020617', density: 10000, type: 'solid', label: 'Blk Hole', glow: true, cat: 'cosmic' },
+            CLONER:    { id: 25, color: '#ec4899', density: 100, type: 'solid', label: 'Cloner', glow: true, cat: 'cosmic' },
+            NUKE:      { id: 26, color: '#22c55e', density: 90, type: 'solid', label: 'NUKE', glow: true, cat: 'cosmic' },
+            LASER:     { id: 27, color: '#ef4444', density: 0, type: 'energy', label: 'Laser', glow: true, cat: 'cosmic' },
+            AETHER:    { id: 28, color: '#6366f1', density: -50, type: 'gas', label: 'Aether', glow: true, cat: 'cosmic' },
+            WORMHOLE:  { id: 29, color: '#6d28d9', density: 0, type: 'solid', label: 'Wormhole', glow: true, cat: 'cosmic' },
+            VORTEX:    { id: 30, color: '#312e81', density: 0, type: 'solid', label: 'Vortex', glow: true, cat: 'cosmic' },
+            VOID_GAS:  { id: 31, color: '#0f172a', density: -100, type: 'gas', label: 'Void Gas', glow: false, cat: 'cosmic' },
+            LIGHT:     { id: 32, color: '#fef08a', density: 0, type: 'energy', label: 'Light', glow: true, cat: 'cosmic' },
+            PLASMA_RAY:{ id: 33, color: '#f0abfc', density: 0, type: 'energy', label: 'Plasma', glow: true, cat: 'cosmic' },
+            STRANGE:   { id: 34, color: '#d946ef', density: 1000, type: 'liquid', label: 'Strange', glow: true, cat: 'cosmic' },
+            CRYSTAL:   { id: 35, color: '#0ea5e9', density: 90, type: 'solid', label: 'Crystal', glow: true, cat: 'cosmic' },
+            
+            // HIDDEN
+            STEAM:     { id: 99, color: '#cbd5e1', density: -10, type: 'gas', label: 'Steam', cat: 'basic' }
+        };
+        
+        const ELEMENT_LOOKUP = {};
+        Object.values(ELEMENTS).forEach(el => ELEMENT_LOOKUP[el.id] = el);
+
+        let grid = [], canvas, ctx, canvasContainer;
+        let activeElement = ELEMENTS.SAND, brushSize = 4, isDrawing = false;
+        let isPaused = false, gravityEnabled = true, lastGridX = -1, lastGridY = -1;
+        let shakeIntensity = 0, tick = 0, lastTime = performance.now(), frames = 0;
+        let driftMap = new Float32Array(GRID_SIZE * GRID_SIZE * 2); 
+        let idleTimer = 0, lastReactionTime = 0, currentMood = 'normal';
+
+        const uiGroups = {
+            basic: document.getElementById('basicButtons'),
+            liquid: document.getElementById('liquidButtons'),
+            rad: document.getElementById('radButtons'),
+            chaos: document.getElementById('chaosButtons'),
+            cosmic: document.getElementById('cosmicButtons')
+        };
+        const avatar = document.getElementById('avatar'), bubble = document.getElementById('bubble');
+
+        function initGrid() {
+            grid = new Array(GRID_SIZE);
+            for (let y = 0; y < GRID_SIZE; y++) grid[y] = new Array(GRID_SIZE).fill(ELEMENTS.EMPTY.id);
+            for (let x = 0; x < GRID_SIZE; x++) grid[GRID_SIZE - 1][x] = ELEMENTS.WALL.id;
+            driftMap.fill(0);
+        }
+
+        function initCanvas() {
+            canvas = document.getElementById('simCanvas');
+            canvasContainer = document.getElementById('canvasContainer');
+            ctx = canvas.getContext('2d', { alpha: false });
+            canvas.width = GRID_SIZE;
+            canvas.height = GRID_SIZE;
+            ctx.fillStyle = '#000000';
+            ctx.fillRect(0, 0, GRID_SIZE, GRID_SIZE);
+        }
+
+        function initUI() {
+            Object.values(uiGroups).forEach(g => g.innerHTML = '');
+            Object.keys(ELEMENTS).forEach(key => {
+                const el = ELEMENTS[key];
+                if (el.id === ELEMENTS.EMPTY.id || el.id === ELEMENTS.STEAM.id) return;
+                const btn = document.createElement('button');
+                let border = 'border-slate-700', bg = 'bg-slate-900/50', textColor = 'text-slate-300';
+                if (el.cat === 'chaos') { border = 'border-fuchsia-500/30'; textColor = 'text-fuchsia-300'; }
+                if (el.cat === 'liquid') { border = 'border-blue-500/30'; textColor = 'text-blue-300'; }
+                if (el.cat === 'rad') { border = 'border-green-500/30'; textColor = 'text-green-300'; }
+                if (el.cat === 'cosmic') { border = 'border-violet-500/30'; bg = 'bg-violet-900/20'; textColor = 'text-violet-300'; }
+                btn.className = `btn-neon flex flex-col items-center justify-center p-2 rounded-lg border ${border} ${bg} hover:bg-slate-800 ${textColor} text-[9px] font-bold transition-all h-14 shadow-sm`;
+                btn.innerHTML = `<div class="w-4 h-1 mb-1 rounded-full transition-all ring-1 ring-white/10" style="background-color: ${el.color}; box-shadow: 0 0 8px ${el.color}"></div>${el.label}`;
+                btn.onclick = () => { setActiveElement(el, btn); reactToSelection(el); };
+                if (uiGroups[el.cat]) uiGroups[el.cat].appendChild(btn);
+            });
+
+            document.getElementById('clearBtn').onclick = () => {
+                triggerShake(30); ctx.fillStyle = '#fff'; ctx.fillRect(0,0,GRID_SIZE,GRID_SIZE);
+                setTimeout(initGrid, 50); triggerSpeech("Universe rebooted.", 2000, true); setMood('normal');
+            };
+            document.getElementById('pauseBtn').onclick = () => { isPaused = !isPaused; triggerSpeech(isPaused ? "I froze time! 🧊" : "Time flows again.", 1500, true); };
+            document.getElementById('gravityBtn').onclick = () => {
+                gravityEnabled = !gravityEnabled;
+                const btn = document.getElementById('gravityBtn');
+                btn.classList.toggle('text-blue-300'); btn.classList.toggle('text-slate-500');
+                if(!gravityEnabled) { setMood('floating'); triggerSpeech("Anti-gravity enabled! 🛸", 2000, true); } else { setMood('normal'); triggerSpeech("Gravity restored.", 1000, true); }
+            };
+            const updateBrush = (e) => brushSize = parseInt(e.target.value);
+            document.getElementById('brushSizeSlider').addEventListener('input', updateBrush);
+            document.getElementById('mobileBrushSlider').addEventListener('input', updateBrush);
+            setActiveElement(ELEMENTS.SAND);
+        }
+
+        function setActiveElement(el, btn) {
+            activeElement = el;
+            document.getElementById('activeElementDisplay').textContent = el.label.toUpperCase();
+            document.getElementById('activeElementDisplay').style.color = el.color;
+            document.getElementById('activeColorIndicator').style.backgroundColor = el.color;
+            document.getElementById('activeColorIndicator').style.boxShadow = `0 0 20px ${el.color}`;
+            document.querySelectorAll('.btn-neon').forEach(b => b.classList.remove('btn-active'));
+            if (btn) btn.classList.add('btn-active');
+            else {
+                const btns = document.querySelectorAll('button');
+                btns.forEach(b => { if(b.innerText.includes(el.label)) b.classList.add('btn-active'); });
+            }
+            idleTimer = 0; if(currentMood === 'sleep') setMood('normal');
+        }
+
+        function reactToSelection(el) {
+            if (el.id === ELEMENTS.NUKE.id) { setMood('hazmat'); triggerSpeech("Nuclear Hazard!", 2500, true); }
+            else if (el.id === ELEMENTS.URANIUM.id || el.id === ELEMENTS.RADON.id) { setMood('hazmat'); triggerSpeech("Radioactive!", 2000, true); }
+            else if (el.id === ELEMENTS.MUTAGEN.id) { setMood('mutated'); triggerSpeech("I feel weird...", 2000, true); }
+            else if (el.id === ELEMENTS.GRAY_GOO.id) { setMood('hazmat'); triggerSpeech("Nanobot Swarm!", 2000, true); }
+            else if (el.id === ELEMENTS.BLACK_HOLE.id) { setMood('scared'); triggerSpeech("Event horizon!", 2500, true); }
+            else if (el.id === ELEMENTS.CLONER.id) { setMood('scared'); triggerSpeech("Infinite replication...", 2000, true); }
+            else if (el.id === ELEMENTS.AETHER.id) { setMood('glasses'); triggerSpeech("Cosmic energy.", 2000, true); }
+            else if (el.id === ELEMENTS.PLASMA_RAY.id) { setMood('glasses'); triggerSpeech("Pew pew!", 1500, true); }
+            else if (el.id === ELEMENTS.NEBULA.id) { setMood('amazed'); triggerSpeech("Stardust...", 2000, true); }
+            else if (el.id === ELEMENTS.PLANT.id) { setMood('love'); triggerSpeech("I love nature.", 2000, true); }
+            else if (el.id === ELEMENTS.VOID_GAS.id) { setMood('confused'); triggerSpeech("Null matter?", 2000, true); }
+            else if (el.id === ELEMENTS.WORMHOLE.id) { setMood('confused'); triggerSpeech("Where does it go?", 2000, true); }
+            else { setMood('normal'); }
+        }
+
+        function updateObserver() {
+            idleTimer++;
+            if (idleTimer > 400 && currentMood !== 'sleep' && currentMood !== 'floating' && currentMood !== 'mutated') { setMood('sleep'); triggerSpeech("Zzz...", 1000); }
+            if (tick % 10 === 0 && currentMood !== 'sleep') {
+                let counts = { nuke:0, bh:0, fire:0, rad:0, total:0 };
+                for(let i=0; i<GRID_SIZE*GRID_SIZE; i+=25) { 
+                    const y = Math.floor(i/GRID_SIZE); const x = i%GRID_SIZE; const pid = grid[y][x];
+                    if(pid!==ELEMENTS.EMPTY.id) {
+                        counts.total++;
+                        if(pid===ELEMENTS.NUKE.id) counts.nuke++;
+                        if(pid===ELEMENTS.BLACK_HOLE.id) counts.bh++;
+                        if(pid===ELEMENTS.FIRE.id || pid===ELEMENTS.LAVA.id) counts.fire++;
+                        if(pid===ELEMENTS.URANIUM.id || pid===ELEMENTS.RADON.id) counts.rad++;
+                    }
+                }
+                if(counts.bh > 0) { if(currentMood!=='panic') { setMood('panic'); triggerSpeech("SPAGHETTIFICATION!", 2000, true); } }
+                else if(counts.nuke > 0) { if(currentMood!=='hazmat') { setMood('hazmat'); } }
+                else if(counts.rad > 50) { if(currentMood!=='mutated') { setMood('mutated'); triggerSpeech("DNA Scrambling...", 3000, true); } }
+                else if(counts.fire > 300) { if(currentMood!=='hot') { setMood('hot'); triggerSpeech("Getting warm...", 2000); } }
+            }
+        }
+
+        function setMood(mood) {
+            currentMood = mood; avatar.className = 'scientist-emoji'; 
+            if (mood === 'normal') avatar.innerText = "👨‍🚀";
+            else if (mood === 'floating') { avatar.innerText = "🛸"; avatar.classList.add('floating'); }
+            else if (mood === 'sleep') { avatar.innerText = "😴"; avatar.classList.add('sleeping'); }
+            else if (mood === 'panic') { avatar.innerText = "😱"; avatar.classList.add('shaking'); }
+            else if (mood === 'scared') { avatar.innerText = "😰"; }
+            else if (mood === 'hazmat') { avatar.innerText = "☣️"; }
+            else if (mood === 'mutated') { avatar.innerText = "🧟"; avatar.classList.add('mutated'); }
+            else if (mood === 'glasses') { avatar.innerText = "😎"; }
+            else if (mood === 'amazed') { avatar.innerText = "🤩"; }
+            else if (mood === 'love') { avatar.innerText = "🥰"; }
+            else if (mood === 'hot') { avatar.innerText = "🥵"; }
+            else if (mood === 'confused') { avatar.innerText = "😵‍💫"; }
+        }
+        window.pokeScientist = () => { triggerSpeech("Hey! I'm working here!", 1500, true); setMood('confused'); idleTimer = 0; };
+        function triggerShake(amount) { shakeIntensity = amount; }
+        function triggerSpeech(text, time=2000, urgent=false) {
+            if (!urgent && Date.now() - lastReactionTime < 1000) return; 
+            lastReactionTime = Date.now();
+            bubble.innerText = text; bubble.classList.add('show');
+            setTimeout(() => bubble.classList.remove('show'), time);
+        }
+        function getGridPos(e) {
+            const rect = canvas.getBoundingClientRect();
+            const cx = e.touches ? e.touches[0].clientX : e.clientX;
+            const cy = e.touches ? e.touches[0].clientY : e.clientY;
+            const scaleX = canvas.width / rect.width;
+            const scaleY = canvas.height / rect.height;
+            return { x: Math.floor((cx - rect.left) * scaleX), y: Math.floor((cy - rect.top) * scaleY) };
+        }
+
+        function place(cx, cy) {
+            const r = brushSize; idleTimer = 0; if(currentMood === 'sleep') setMood('normal');
+            for (let y = cy - r; y <= cy + r; y++) {
+                for (let x = cx - r; x <= cx + r; x++) {
+                    if (x >= 0 && x < GRID_SIZE && y >= 0 && y < GRID_SIZE) {
+                        if ((x-cx)**2 + (y-cy)**2 <= r*r) {
+                            const t = grid[y][x];
+                            const overwrite = t === ELEMENTS.EMPTY.id || activeElement.id === ELEMENTS.WALL.id || activeElement.id === ELEMENTS.BLACK_HOLE.id || activeElement.id === ELEMENTS.EMPTY.id;
+                            if (overwrite) {
+                                grid[y][x] = activeElement.id;
+                                if(!gravityEnabled) { const idx = (y * GRID_SIZE + x) * 2; driftMap[idx] = (Math.random()-0.5)*0.5; driftMap[idx+1] = (Math.random()-0.5)*0.5; }
+                            }
+                        }
+                    }
+                }
+            }
+        }
+        function handleInput(e) {
+            if (e.cancelable) e.preventDefault();
+            const pos = getGridPos(e);
+            if (isDrawing) {
+                if (lastGridX !== -1) {
+                    const dist = Math.hypot(pos.x - lastGridX, pos.y - lastGridY);
+                    const steps = Math.max(1, Math.ceil(dist));
+                    for (let i = 0; i < steps; i++) {
+                        const t = i / steps;
+                        place(Math.round(lastGridX + (pos.x - lastGridX) * t), Math.round(lastGridY + (pos.y - lastGridY) * t));
+                    }
+                }
+                place(pos.x, pos.y); lastGridX = pos.x; lastGridY = pos.y;
+            }
+        }
+        const start = (e) => { isDrawing = true; handleInput(e); };
+        const move = (e) => { if (isDrawing) handleInput(e); };
+        const end = () => { isDrawing = false; lastGridX = -1; };
+        document.addEventListener('mousedown', (e) => { if(e.target === canvas) start(e); });
+        document.addEventListener('mousemove', move); document.addEventListener('mouseup', end);
+        document.addEventListener('touchstart', (e) => { if(e.target === canvas) start(e); }, {passive:false});
+        document.addEventListener('touchmove', move, {passive:false}); document.addEventListener('touchend', end);
+        
+        function update() {
+            if (isPaused) return;
+            tick++; updateObserver();
+            const nextGrid = grid.map(row => [...row]);
+            const nextDrift = new Float32Array(driftMap); 
+            const randDir = Math.random() < 0.5; 
+            for (let y = 0; y < GRID_SIZE; y++) {
+                const scanY = GRID_SIZE - 1 - y;
+                for (let i = 0; i < GRID_SIZE; i++) {
+                    const x = randDir ? i : (GRID_SIZE - 1 - i);
+                    const pid = grid[scanY][x];
+                    if (pid === ELEMENTS.EMPTY.id || pid === ELEMENTS.WALL.id) continue;
+                    const p = ELEMENT_LOOKUP[pid];
+                    if (!p) continue; 
+                    
+                    // --- SPECIAL PHYSICS ---
+                    // URANIUM: Decays, heats surroundings
+                    if(p.id === ELEMENTS.URANIUM.id) {
+                         if(Math.random() < 0.001) { nextGrid[scanY][x] = ELEMENTS.RADON.id; } // Decay
+                         // Heat
+                         const n = [[0,1],[0,-1],[1,0],[-1,0]];
+                         for(let [dx,dy] of n) {
+                             const nx=x+dx, ny=scanY+dy;
+                             if(nx>=0 && nx<GRID_SIZE && ny>=0 && ny<GRID_SIZE) {
+                                 const tid = grid[ny][nx];
+                                 if(tid===ELEMENTS.ICE.id) nextGrid[ny][nx] = ELEMENTS.WATER.id; // Melt
+                                 if(tid===ELEMENTS.WATER.id && Math.random()<0.05) nextGrid[ny][nx] = ELEMENTS.STEAM.id; // Boil
+                             }
+                         }
+                    }
+                    // RADON: Heavy gas, radioactive
+                    if(p.id === ELEMENTS.RADON.id) {
+                        if(Math.random() < 0.01) nextGrid[scanY][x] = ELEMENTS.EMPTY.id; // Dissipate
+                    }
+                    // MUTAGEN: Random transmute
+                    if(p.id === ELEMENTS.MUTAGEN.id) {
+                         const n = [[0,1],[0,-1],[1,0],[-1,0]];
+                         for(let [dx,dy] of n) {
+                             const nx=x+dx, ny=scanY+dy;
+                             if(nx>=0 && nx<GRID_SIZE && ny>=0 && ny<GRID_SIZE) {
+                                 if(grid[ny][nx] !== ELEMENTS.EMPTY.id && grid[ny][nx] !== ELEMENTS.WALL.id && grid[ny][nx] !== ELEMENTS.MUTAGEN.id && Math.random()<0.05) {
+                                     const keys = Object.keys(ELEMENTS);
+                                     const rKey = keys[Math.floor(Math.random() * keys.length)];
+                                     nextGrid[ny][nx] = ELEMENTS[rKey].id;
+                                 }
+                             }
+                         }
+                    }
+
+                    // WORMHOLE
+                    if (p.id === ELEMENTS.WORMHOLE.id) {
+                        const n = [[0,1],[0,-1],[1,0],[-1,0]];
+                        for(let [dx,dy] of n) {
+                            const nx=x+dx, ny=scanY+dy;
+                            if(nx>=0 && nx<GRID_SIZE && ny>=0 && ny<GRID_SIZE) {
+                                const tid = grid[ny][nx];
+                                if(tid !== ELEMENTS.EMPTY.id && tid !== ELEMENTS.WORMHOLE.id && tid !== ELEMENTS.WALL.id) {
+                                    let tries = 0;
+                                    while(tries < 5) {
+                                        const rx = Math.floor(Math.random()*GRID_SIZE);
+                                        const ry = Math.floor(Math.random()*GRID_SIZE);
+                                        if(nextGrid[ry][rx] === ELEMENTS.EMPTY.id) { nextGrid[ry][rx] = tid; nextGrid[ny][nx] = ELEMENTS.EMPTY.id; break; }
+                                        tries++;
+                                    }
+                                }
+                            }
+                        }
+                        continue;
+                    }
+                    if (p.id === ELEMENTS.VORTEX.id) {
+                        const r = 4;
+                        for(let dy=-r; dy<=r; dy++){
+                            for(let dx=-r; dx<=r; dx++){
+                                const nx=x+dx, ny=scanY+dy;
+                                if(nx>=0 && nx<GRID_SIZE && ny>=0 && ny<GRID_SIZE) {
+                                    const tid = grid[ny][nx];
+                                    if(tid !== ELEMENTS.VORTEX.id && tid !== ELEMENTS.WALL.id && tid !== ELEMENTS.EMPTY.id) {
+                                        const moveX = nx + (x > nx ? 1 : -1); const moveY = ny + (scanY > ny ? 1 : -1);
+                                        if(grid[moveY][moveX] === ELEMENTS.EMPTY.id) { nextGrid[moveY][moveX] = tid; nextGrid[ny][nx] = ELEMENTS.EMPTY.id; }
+                                    }
+                                }
+                            }
+                        }
+                        continue;
+                    }
+                    if (p.id === ELEMENTS.CRYSTAL.id) {
+                        if(Math.random() < 0.005) {
+                             const n = [[0,1],[0,-1],[1,0],[-1,0]]; const [dx,dy] = n[Math.floor(Math.random()*4)]; const nx=x+dx, ny=scanY+dy;
+                             if(nx>=0 && nx<GRID_SIZE && ny>=0 && ny<GRID_SIZE) {
+                                 if(grid[ny][nx] === ELEMENTS.EMPTY.id || grid[ny][nx] === ELEMENTS.WATER.id) nextGrid[ny][nx] = ELEMENTS.CRYSTAL.id;
+                             }
+                        }
+                        continue;
+                    }
+                    if (p.id === ELEMENTS.VOID_GAS.id) {
+                        const n = [[0,1],[0,-1],[1,0],[-1,0]];
+                        for(let [dx,dy] of n) {
+                            const nx=x+dx, ny=scanY+dy;
+                            if(nx>=0 && nx<GRID_SIZE && ny>=0 && ny<GRID_SIZE) {
+                                if(grid[ny][nx] !== ELEMENTS.EMPTY.id && grid[ny][nx] !== ELEMENTS.VOID_GAS.id && grid[ny][nx] !== ELEMENTS.WALL.id) nextGrid[ny][nx] = ELEMENTS.EMPTY.id;
+                            }
+                        }
+                        if(scanY>0 && nextGrid[scanY-1][x] === ELEMENTS.EMPTY.id) { nextGrid[scanY-1][x] = pid; nextGrid[scanY][x] = ELEMENTS.EMPTY.id; }
+                        continue;
+                    }
+                    if (p.id === ELEMENTS.BLACK_HOLE.id) {
+                        for(let dy=-5; dy<=5; dy++){
+                            for(let dx=-5; dx<=5; dx++){
+                                const nx=x+dx, ny=scanY+dy;
+                                if(nx>=0 && nx<GRID_SIZE && ny>=0 && ny<GRID_SIZE) {
+                                    const tid = grid[ny][nx];
+                                    if(tid !== ELEMENTS.BLACK_HOLE.id && tid !== ELEMENTS.WALL.id && tid !== ELEMENTS.EMPTY.id) {
+                                        const moveX = nx + (x > nx ? 1 : -1); const moveY = ny + (scanY > ny ? 1 : -1);
+                                        if (moveX === x && moveY === scanY) nextGrid[ny][nx] = ELEMENTS.EMPTY.id;
+                                        else { nextGrid[moveY][moveX] = tid; nextGrid[ny][nx] = ELEMENTS.EMPTY.id; }
+                                    }
+                                }
+                            }
+                        }
+                        continue;
+                    }
+                    if (p.id === ELEMENTS.EXPLOSIVE.id) {
+                         const n = [[0,1],[0,-1],[1,0],[-1,0]];
+                         for(let [dx,dy] of n) {
+                             const nx=x+dx, ny=scanY+dy;
+                             if(nx>=0 && nx<GRID_SIZE && ny>=0 && ny<GRID_SIZE) {
+                                 const tid = grid[ny][nx];
+                                 if(tid === ELEMENTS.FIRE.id || tid === ELEMENTS.LAVA.id) {
+                                     triggerShake(10);
+                                     for(let ry=-2; ry<=2; ry++){ for(let rx=-2; rx<=2; rx++){ if(x+rx>=0 && x+rx<GRID_SIZE && y+ry>=0 && y+ry<GRID_SIZE) nextGrid[y+ry][x+rx] = ELEMENTS.FIRE.id; }}
+                                 }
+                             }
+                         }
+                    }
+                    if (p.id === ELEMENTS.ALKALI.id) {
+                         const n = [[0,1]];
+                         for(let [dx,dy] of n) {
+                             const nx=x+dx, ny=scanY+dy;
+                             if(nx>=0 && nx<GRID_SIZE && ny>=0 && ny<GRID_SIZE) {
+                                 if(grid[ny][nx] === ELEMENTS.WALL.id && Math.random() < 0.05) { nextGrid[ny][nx] = ELEMENTS.EMPTY.id; nextGrid[scanY][x] = ELEMENTS.EMPTY.id; }
+                             }
+                         }
+                    }
+                    if (p.id === ELEMENTS.CLONER.id) {
+                        const n = [[0,1],[0,-1],[1,0],[-1,0]];
+                        for(let [dx,dy] of n) {
+                            const nx=x+dx, ny=scanY+dy;
+                            if(nx>=0 && nx<GRID_SIZE && ny>=0 && ny<GRID_SIZE) {
+                                const tid = grid[ny][nx];
+                                if (tid !== ELEMENTS.EMPTY.id && tid !== ELEMENTS.CLONER.id && tid !== ELEMENTS.WALL.id && tid !== ELEMENTS.BLACK_HOLE.id) {
+                                    const sx = x - dx; const sy = scanY - dy;
+                                    if(sx>=0 && sx<GRID_SIZE && sy>=0 && sy<GRID_SIZE && nextGrid[sy][sx] === ELEMENTS.EMPTY.id) nextGrid[sy][sx] = tid;
+                                }
+                            }
+                        }
+                        continue;
+                    }
+                    if (p.id === ELEMENTS.GRAY_GOO.id) {
+                        const n = [[0,1],[0,-1],[1,0],[-1,0]]; const [dx,dy] = n[Math.floor(Math.random()*4)]; const nx=x+dx, ny=scanY+dy;
+                        if(nx>=0 && nx<GRID_SIZE && ny>=0 && ny<GRID_SIZE) {
+                             const tid = grid[ny][nx];
+                             if (tid !== ELEMENTS.EMPTY.id && tid !== ELEMENTS.WALL.id && tid !== ELEMENTS.GRAY_GOO.id && tid !== ELEMENTS.BLACK_HOLE.id) nextGrid[ny][nx] = ELEMENTS.GRAY_GOO.id; 
+                             else if (tid === ELEMENTS.EMPTY.id && Math.random() < 0.05) nextGrid[ny][nx] = ELEMENTS.GRAY_GOO.id; 
+                        }
+                        continue;
+                    }
+                    if (p.id === ELEMENTS.NUKE.id) {
+                        const n = [[0,1],[0,-1],[1,0],[-1,0]]; let boom = false;
+                        for(let [dx,dy] of n) {
+                            const nx=x+dx, ny=scanY+dy;
+                            if(nx>=0 && nx<GRID_SIZE && ny>=0 && ny<GRID_SIZE) {
+                                const tid = grid[ny][nx];
+                                if(tid===ELEMENTS.FIRE.id || tid===ELEMENTS.LAVA.id || tid===ELEMENTS.LASER.id || tid===ELEMENTS.THUNDER.id || tid===ELEMENTS.PLASMA_RAY.id) boom = true;
+                            }
+                        }
+                        if(boom) {
+                            triggerShake(60); triggerSpeech("NUCLEAR DETONATION!", 3000, true);
+                            const r = 25; 
+                            for(let dy=-r; dy<=r; dy++){
+                                for(let dx=-r; dx<=r; dx++){
+                                    if(dx*dx+dy*dy <= r*r) {
+                                        const ex=x+dx, ey=scanY+dy;
+                                        if(ex>=0 && ex<GRID_SIZE && ey>=0 && ey<GRID_SIZE) {
+                                            if(grid[ey][ex] === ELEMENTS.EMPTY.id) {
+                                                 const idx = (ey*GRID_SIZE + ex)*2; const dist = Math.sqrt(dx*dx+dy*dy) || 1;
+                                                 nextDrift[idx] = (dx/dist) * 2; nextDrift[idx+1] = (dy/dist) * 2;
+                                            }
+                                            if(Math.random() > 0.1) nextGrid[ey][ex] = ELEMENTS.FIRE.id; else nextGrid[ey][ex] = ELEMENTS.FALLOUT.id; 
+                                        }
+                                    }
+                                }
+                            }
+                        }
+                        continue;
+                    }
+                    if (p.id === ELEMENTS.LASER.id || p.id === ELEMENTS.PLASMA_RAY.id || p.id === ELEMENTS.LIGHT.id) {
+                        const dirX = (Math.random() > 0.5 ? 1 : -1); const dirY = (Math.random() > 0.5 ? 1 : -1);
+                        let cx = x, cy = scanY; nextGrid[cy][cx] = ELEMENTS.EMPTY.id; 
+                        let range = p.id === ELEMENTS.LIGHT.id ? 8 : 5;
+                        for(let s=0; s<range; s++) {
+                            cx += dirX; cy += dirY;
+                            if(cx>=0 && cx<GRID_SIZE && cy>=0 && cy<GRID_SIZE) {
+                                const tid = grid[cy][cx];
+                                if(tid === ELEMENTS.WALL.id || tid === ELEMENTS.ICE.id) { cx -= dirX; cy -= dirY; nextGrid[cy][cx] = pid; break; }
+                                else if (tid !== ELEMENTS.EMPTY.id) { if (p.id === ELEMENTS.PLASMA_RAY.id) nextGrid[cy][cx] = ELEMENTS.FIRE.id; break; } 
+                                else { if(s===range-1) nextGrid[cy][cx] = pid; }
+                            } else { break; }
+                        }
+                        continue;
+                    }
+                    if (p.id === ELEMENTS.AETHER.id) {
+                         if(Math.random() < 0.005) nextGrid[scanY][x] = ELEMENTS.PHOTON.id;
+                         const dy = -1; 
+                         if(scanY+dy >= 0 && nextGrid[scanY+dy][x] === ELEMENTS.EMPTY.id) { nextGrid[scanY+dy][x] = pid; nextGrid[scanY][x] = ELEMENTS.EMPTY.id; }
+                         else if(scanY+dy >= 0 && Math.random()<0.5) {
+                             const dx = Math.random()>0.5?1:-1;
+                             if(x+dx>=0 && x+dx<GRID_SIZE && nextGrid[scanY+dy][x+dx] === ELEMENTS.EMPTY.id) { nextGrid[scanY+dy][x+dx] = pid; nextGrid[scanY][x] = ELEMENTS.EMPTY.id; }
+                         }
+                         continue;
+                    }
+                    if (p.type === 'solid') continue;
+
+                    if (!gravityEnabled && p.type !== 'energy') {
+                        const idx = (scanY * GRID_SIZE + x) * 2;
+                        let vx = driftMap[idx]; let vy = driftMap[idx+1];
+                        if(Math.random()<0.05) { vx += (Math.random()-0.5); vy += (Math.random()-0.5); }
+                        vx = Math.max(-1, Math.min(1, vx)); vy = Math.max(-1, Math.min(1, vy));
+                        const nx = Math.round(x + vx); const ny = Math.round(scanY + vy);
+                        if(nx>=0 && nx<GRID_SIZE && ny>=0 && ny<GRID_SIZE) {
+                            if(nextGrid[ny][nx] === ELEMENTS.EMPTY.id) {
+                                nextGrid[ny][nx] = pid; nextGrid[scanY][x] = ELEMENTS.EMPTY.id;
+                                const newIdx = (ny * GRID_SIZE + nx) * 2; nextDrift[newIdx] = vx; nextDrift[newIdx+1] = vy; nextDrift[idx] = 0; nextDrift[idx+1] = 0;
+                            } else { nextDrift[idx] = -vx * 0.5; nextDrift[idx+1] = -vy * 0.5; }
+                        }
+                        continue;
+                    }
+                    const isGas = p.type === 'gas'; const isLiquid = p.type === 'liquid';
+                    const dy = isGas ? -1 : 1;
+                    let steps = (p.cat === 'basic' || p.cat === 'cosmic') ? 2 : 1; 
+                    if (isGas) steps = 2; if (p.id === ELEMENTS.OOZE.id) steps = 1;
+                    let currX = x; let currY = scanY; let moved = false;
+
+                    for(let s=0; s<steps; s++) {
+                        const nextY = currY + dy;
+                        if (nextY < 0 || nextY >= GRID_SIZE) break;
+                        const targetId = grid[nextY][currX];
+                        const targetP = ELEMENT_LOOKUP[targetId];
+                        let canSwap = false;
+                        if (targetId === ELEMENTS.EMPTY.id) canSwap = true;
+                        else if (isGas && targetP.density > p.density && targetP.type !== 'solid') canSwap = true;
+                        else if (!isGas && targetP.density < p.density && targetP.type !== 'solid') canSwap = true;
+
+                        if (canSwap) {
+                            nextGrid[nextY][currX] = pid; nextGrid[currY][currX] = targetId;
+                            currY = nextY; moved = true;
+                        } else {
+                            if (p.type === 'liquid' || p.type === 'gas') {
+                                const dir = Math.random() < 0.5 ? 1 : -1; const nx = currX + dir;
+                                if(nx>=0 && nx<GRID_SIZE) {
+                                    const sideId = grid[currY][nx];
+                                    if(sideId === ELEMENTS.EMPTY.id) { nextGrid[currY][nx] = pid; nextGrid[currY][currX] = ELEMENTS.EMPTY.id; moved = true; }
+                                }
+                            }
+                            break;
+                        }
+                    }
+                }
+            }
+            grid = nextGrid; driftMap = nextDrift; 
+        }
+
+        function draw() {
+            if (shakeIntensity > 0) {
+                const dx = (Math.random() - 0.5) * shakeIntensity; const dy = (Math.random() - 0.5) * shakeIntensity;
+                canvasContainer.style.transform = `translate(${dx}px, ${dy}px)`;
+                shakeIntensity *= SHAKE_DECAY; if (shakeIntensity < 0.5) { shakeIntensity = 0; canvasContainer.style.transform = 'none'; }
+            }
+            ctx.fillStyle = '#000000'; ctx.fillRect(0, 0, GRID_SIZE, GRID_SIZE);
+            for (let y = 0; y < GRID_SIZE; y++) {
+                for (let x = 0; x < GRID_SIZE; x++) {
+                    const pid = grid[y][x];
+                    if (pid !== ELEMENTS.EMPTY.id) {
+                        const p = ELEMENT_LOOKUP[pid];
+                        if (!p) continue; 
+                        if (p.id === ELEMENTS.FIRE.id) ctx.fillStyle = Math.random()>0.7 ? '#f59e0b' : '#ef4444';
+                        else if (p.id === ELEMENTS.ANTIMATTER.id || p.id === ELEMENTS.BLACK_HOLE.id) ctx.fillStyle = Math.random()>0.9 ? '#ffffff' : '#020617';
+                        else if (p.id === ELEMENTS.QUARK.id) ctx.fillStyle = `hsl(${tick*10 % 360}, 100%, 60%)`;
+                        else if (p.id === ELEMENTS.LASER.id || p.id === ELEMENTS.PLASMA_RAY.id) ctx.fillStyle = p.color;
+                        else if (p.id === ELEMENTS.NUKE.id && Math.random()>0.9) ctx.fillStyle = '#bbf7d0';
+                        else if (p.id === ELEMENTS.METHANE.id || p.id === ELEMENTS.FALLOUT.id || p.id === ELEMENTS.AETHER.id || p.id === ELEMENTS.VOID_GAS.id) { if(Math.random()>0.7) continue; ctx.fillStyle = p.color; }
+                        else if (p.id === ELEMENTS.URANIUM.id) { if(Math.random()>0.99) ctx.fillStyle = '#4ade80'; else ctx.fillStyle = p.color; }
+                        else ctx.fillStyle = p.color;
+                        ctx.fillRect(x, y, 1, 1);
+                    }
+                }
+            }
+            for(let i=0; i<150; i++) {
+                 const x = Math.floor(Math.random() * GRID_SIZE); const y = Math.floor(Math.random() * GRID_SIZE); const pid = grid[y][x];
+                 if(pid !== ELEMENTS.EMPTY.id) { const p = ELEMENT_LOOKUP[pid]; if(p && p.glow) { ctx.globalAlpha = 0.15; ctx.fillStyle = p.color; ctx.fillRect(x-2, y-2, 5, 5); ctx.globalAlpha = 1.0; } }
+            }
+            frames++; const now = performance.now(); if (now - lastTime >= 1000) { fpsCounter.textContent = frames; frames = 0; lastTime = now; }
+        }
+
+        function loop() { update(); draw(); requestAnimationFrame(loop); }
+        initUI(); initGrid(); initCanvas(); loop();
+    </script>
+</body>
+</html>
